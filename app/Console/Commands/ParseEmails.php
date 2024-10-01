@@ -13,7 +13,10 @@ class ParseEmails extends Command
 
     public function handle()
     {
-        SuccessfulEmail::whereNull('raw_text')->chunk(100, function ($emails) {
+        SuccessfulEmail::where(function($query) {
+            $query->whereNull('raw_text')
+                  ->orWhere('raw_text', '');
+        })->chunk(100, function ($emails) {
             foreach ($emails as $email) {
                 $plainText = $this->extractPlainText($email->email);
 
