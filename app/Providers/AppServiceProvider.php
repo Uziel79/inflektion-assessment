@@ -11,7 +11,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            \App\Repositories\SuccessfulEmailRepositoryInterface::class,
+            \App\Repositories\SuccessfulEmailRepository::class
+        );
     }
 
     /**

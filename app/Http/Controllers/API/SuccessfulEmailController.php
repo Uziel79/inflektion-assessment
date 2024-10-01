@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Repositories\SuccessfulEmailRepositoryInterface;
 use App\Http\Resources\SuccessfulEmailResource;
+use App\Http\Requests\StoreSuccessfulEmailRequest;
 use Illuminate\Http\Request;
 use App\Models\SuccessfulEmail;
 use Html2Text\Html2Text;

@@ -77,7 +77,7 @@ This API uses Laravel Sanctum for authentication. To authenticate:
    User::create(['name' => 'Test User', 'email' => 'test@example.com', 'password' => bcrypt('password')]);
    ```
 
-2. Obtain an API token by making a POST request to `/login` with the user's credentials.
+2. Obtain an API token by making a POST request to `/api/login` with the user's credentials.
 
 3. Include the token in the `Authorization` header of your API requests:
    ```
