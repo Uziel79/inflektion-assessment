@@ -64,7 +64,7 @@ To parse emails and extract plain text content:
 
 This command is scheduled to run hourly. To set up the scheduler, add the following Cron entry to your server:
     ```
-    cd /inflektion-assessment && php artisan schedule:run >> /dev/null 2>&1
+    cd /var/www/inflektion-assessment && php artisan schedule:run >> /dev/null 2>&1
     ```
 
 ## Authentication
