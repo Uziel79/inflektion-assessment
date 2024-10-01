@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SuccessfulEmail;
 use Illuminate\Http\Request;
 use Html2Text\Html2Text;
+use Illuminate\Support\Facades\Validator;
 
 class SuccessfulEmailController extends Controller
 {
@@ -16,9 +17,9 @@ class SuccessfulEmailController extends Controller
 
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
+        $validator = Validator::make($request->all(), [
             'affiliate_id' => 'required|integer',
-            'envelope' => 'required|string',
+            'envelope' => 'required|json',
             'from' => 'required|string',
             'subject' => 'required|string',
             'dkim' => 'nullable|string',
@@ -30,15 +31,33 @@ class SuccessfulEmailController extends Controller
             'timestamp' => 'required|integer',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $validatedData = $validator->validated();
+
         $plainText = $this->extractPlainText($validatedData['email']);
         $plainText = preg_replace('/[^\P{C}\n]+/u', '', $plainText);
 
-        // Only set raw_text if it's not empty
-        if (!empty($plainText)) {
-            $validatedData['raw_text'] = $plainText;
-        }
+        $validatedData['raw_text'] = $plainText;
 
-        return SuccessfulEmail::create($validatedData);
+        try {
+            $successfulEmail = SuccessfulEmail::create($validatedData);
+
+            return response()->json([
+                'message' => 'Successful email created',
+                'data' => $successfulEmail
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create successful email',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function show(SuccessfulEmail $successfulEmail)
@@ -76,8 +95,12 @@ class SuccessfulEmailController extends Controller
 
     public function destroy(SuccessfulEmail $successfulEmail)
     {
-        $successfulEmail->delete();
-        return response()->json(null, 204);
+        try {
+            $successfulEmail->deleteOrFail();
+            return response()->json(['message' => 'Email deleted successfully'], 204);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to delete email', 'error' => $e->getMessage()], 500);
+        }
     }
 
     private function extractPlainText($rawEmail)
