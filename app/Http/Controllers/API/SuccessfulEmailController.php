@@ -3,50 +3,43 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\SuccessfulEmail;
+use App\Repositories\SuccessfulEmailRepositoryInterface;
+use App\Http\Resources\SuccessfulEmailResource;
 use Illuminate\Http\Request;
+use App\Models\SuccessfulEmail;
 use Html2Text\Html2Text;
-use Illuminate\Support\Facades\Validator;
+use App\Services\EmailParsingService;
+use Illuminate\Support\Facades\Log;
 
 class SuccessfulEmailController extends Controller
 {
-    public function index()
+    private $successfulEmailRepository;
+    private $emailParsingService;
+
+    public function __construct(SuccessfulEmailRepositoryInterface $successfulEmailRepository, EmailParsingService $emailParsingService)
     {
-        return SuccessfulEmail::paginate(15);
+        $this->successfulEmailRepository = $successfulEmailRepository;
+        $this->emailParsingService = $emailParsingService;
     }
 
-    public function store(Request $request)
+    public function index()
     {
-        $validator = Validator::make($request->all(), [
-            'affiliate_id' => 'required|integer',
-            'envelope' => 'required|json',
-            'from' => 'required|string',
-            'subject' => 'required|string',
-            'dkim' => 'nullable|string',
-            'SPF' => 'nullable|string',
-            'spam_score' => 'nullable|numeric',
-            'email' => 'required|string',
-            'sender_ip' => 'nullable|string',
-            'to' => 'required|string',
-            'timestamp' => 'required|integer',
-        ]);
+        return SuccessfulEmailResource::collection($this->successfulEmailRepository->getAllPaginated());
+    }
 
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
+    public function store(StoreSuccessfulEmailRequest $request)
+    {
+        $validatedData = $request->validated();
 
-        $validatedData = $validator->validated();
-
-        $plainText = $this->extractPlainText($validatedData['email']);
-        $plainText = preg_replace('/[^\P{C}\n]+/u', '', $plainText);
+        $plainText = $this->emailParsingService->extractPlainText($validatedData['email']);
+        $plainText = $this->emailParsingService->sanitizePlainText($plainText);
 
         $validatedData['raw_text'] = $plainText;
 
         try {
-            $successfulEmail = SuccessfulEmail::create($validatedData);
+            $successfulEmail = $this->successfulEmailRepository->create($validatedData);
+
+            Log::info('Successful email created', ['id' => $successfulEmail->id]);
 
             return response()->json([
                 'message' => 'Successful email created',
@@ -62,7 +55,7 @@ class SuccessfulEmailController extends Controller
 
     public function show(SuccessfulEmail $successfulEmail)
     {
-        return $successfulEmail;
+        return new SuccessfulEmailResource($successfulEmail);
     }
 
     public function update(Request $request, SuccessfulEmail $successfulEmail)
@@ -82,64 +75,28 @@ class SuccessfulEmailController extends Controller
         ]);
 
         if (isset($validatedData['email'])) {
-            $html = $validatedData['email'];
-            $text = new Html2Text($html);
-            $plainText = $text->getText();
-            $plainText = preg_replace('/[^\P{C}\n]+/u', '', $plainText);
+            $plainText = $this->emailParsingService->extractPlainText($validatedData['email']);
+            $plainText = $this->emailParsingService->sanitizePlainText($plainText);
             $validatedData['raw_text'] = $plainText;
         }
 
-        $successfulEmail->update($validatedData);
+        $this->successfulEmailRepository->update($successfulEmail, $validatedData);
+
+        Log::info('Successful email updated', ['id' => $successfulEmail->id]);
+
         return $successfulEmail;
     }
 
     public function destroy(SuccessfulEmail $successfulEmail)
     {
         try {
-            $successfulEmail->deleteOrFail();
+            $this->successfulEmailRepository->delete($successfulEmail);
+
+            Log::info('Successful email deleted', ['id' => $successfulEmail->id]);
+
             return response()->json(['message' => 'Email deleted successfully'], 204);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to delete email', 'error' => $e->getMessage()], 500);
         }
-    }
-
-    private function extractPlainText($rawEmail)
-    {
-        // Check if the content is HTML
-        if (strpos($rawEmail, '<html') !== false || strpos($rawEmail, '<body') !== false) {
-            // If it's HTML, use Html2Text to convert it
-            $html2text = new Html2Text($rawEmail);
-            return $html2text->getText();
-        }
-
-        // If it's not HTML, assume it's a full email structure
-        // Split the email into headers and body
-        $parts = explode("\r\n\r\n", $rawEmail, 2);
-
-        if (count($parts) < 2) {
-            // If we can't split into headers and body, return the original content
-            return $rawEmail;
-        }
-
-        list($headers, $body) = $parts;
-
-        // Check if the email is multipart
-        if (preg_match('/Content-Type: multipart\/alternative;.*boundary="([^"]+)"/s', $headers, $matches)) {
-            $boundary = $matches[1];
-            $parts = explode("--$boundary", $body);
-
-            // Look for the plain text part
-            foreach ($parts as $part) {
-                if (strpos($part, 'Content-Type: text/plain') !== false) {
-                    // Extract the content after the headers
-                    list(, $content) = explode("\r\n\r\n", $part, 2);
-                    return trim($content);
-                }
-            }
-        }
-
-        // If no plain text part found, convert the whole body from HTML to text
-        $html2text = new Html2Text($body);
-        return $html2text->getText();
     }
 }
