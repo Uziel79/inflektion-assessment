@@ -28,8 +28,6 @@ class SuccessfulEmailResource extends JsonResource
             'raw_text' => $this->raw_text,
             'sender_ip' => $this->sender_ip,
             'timestamp' => $this->timestamp,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
         ];
     }
 }

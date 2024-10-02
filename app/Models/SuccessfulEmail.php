@@ -14,6 +14,8 @@ class SuccessfulEmail extends Model
     const EMAIL_COLUMN = 'email';
     const CHUNK_SIZE = 100;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'affiliate_id', 'envelope', 'from', 'subject', 'dkim', 'SPF',
         'spam_score', 'email', 'raw_text', 'sender_ip', 'to', 'timestamp'
